@@ -5,6 +5,7 @@ import sys
 from concurrent import futures
 import random
 from threading import Timer
+import math
 
 class RaftServerHandler(pb2_grpc.RaftService):
     def __init__(self, config_dict, id):
@@ -39,6 +40,22 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.state = 'candidate'  
         self.votes = 1
         self.voted = True
+
+        for id, ip_and_port in self.config_dict:
+            if(id != 'leader'):
+                new_channel = grpc.insecure_channel(ip_and_port)
+                new_stub = pb2_grpc.RaftServiceStub(new_channel)
+
+                msg = {"term": self.term, "candidateId": self.id}
+                request_vote_response = new_stub.RequestVote(**msg)
+
+                if(request_vote_response.result == True):
+                    self.votes+=1
+
+        if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
+            self.state = 'candidate'
+            self.init_timer()
+            self.restart_timer(надо у Маъруфа узнать че сюда вставлять)
 
     def reset_votes(self):
         self.votes = 0
@@ -85,7 +102,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 self.voted = True    
                 reply = {"term": self.term, "result": True}
                 return pb2.RequestVoteResponse(**reply)
-                
+
             else:
                 reply = {"term": self.term, "result": False}
                 return pb2.RequestVoteResponse(**reply)    
