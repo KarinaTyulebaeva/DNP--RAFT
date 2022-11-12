@@ -7,15 +7,16 @@ class Client:
         self.channel = None
         self.stub = None
 
-    def connect(self, ip_and_port: str):
+    def connect(self, ip_and_port):
         try:
+            print(ip_and_port)
             self.channel = grpc.insecure_channel(ip_and_port)
-            self.stub =pb2_grpc.RaftServiceStub(ip_and_port)
+            self.stub =pb2_grpc.RaftServiceStub(self.channel)
         except:
-            print("something wrong")    
+            print("Something wrong")    
 
     def get_leader(self):
-        response = self.stub.GetLeader(pb2.Empty())
+        response = self.stub.GetLeader(pb2.EmptyRequest())
         print(f'{response.leaderId} {response.address}')       
 
     def suspend(self, period: int):
@@ -34,7 +35,7 @@ class Client:
 
                 # connection
                 if(command[0] == "connect"):
-                    self.connect(command[1])
+                    self.connect(f'{command[1]}:{command[2]}')
 
                 # get leader        
                 elif(command[0] == "getleader"):
