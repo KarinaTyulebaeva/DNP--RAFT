@@ -20,7 +20,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.heartbeat = 50
         self.id = id
         self.votes = 0
-        self.restart_timer(self.become_candidate())
+        self.restart_timer(self.become_candidate)
 
         self.voted = False
 
@@ -33,11 +33,24 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
     def update_term(self, n):
         self.term = n
-        self.voted = False    
+        self.voted = False   
+
+    def check_votes(self):
+        if self.state != 'candidare':
+            return
+        if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
+            self.state = 'leader'
+            # TODO: отдавать хартбит - тоже добавить таймер с функцией хартбита?
+        else:
+            self.state = 'follower'
+            self.init_timer()
+            self.restart_timer(self.become_candidate)
+
 
     def become_candidate(self):
         self.update_term(1)
         self.state = 'candidate'  
+        self.restart_timer(self.check_votes)
         self.votes = 1
         self.voted = True
 
@@ -51,11 +64,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
                 if(request_vote_response.result == True):
                     self.votes+=1
-
-        if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
-            self.state = 'candidate'
-            self.init_timer()
-            self.restart_timer(надо у Маъруфа узнать че сюда вставлять)
 
     def reset_votes(self):
         self.votes = 0
@@ -111,6 +119,10 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.timer.restart()
 
         if(request.term >= self.term):
+            # Потому что if the Candidate receives the message (any message) with the term number greater than its own, it stops the election and becomes a Follower
+            # Или if the Leader receives a heartbeat message from another Leader with the term number greater than its own, it becomes a Follower 
+            self.state = 'follower'
+
             self.config_dict['leader'] = request.leaderId
             self.update_term(request.term)
             reply = {"term": self.term, "success": True}
