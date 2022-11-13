@@ -22,7 +22,7 @@ class RaftServiceStub(object):
         self.AppendEntries = channel.unary_unary(
                 '/RaftService/AppendEntries',
                 request_serializer=raft__pb2.AppendEntryRequest.SerializeToString,
-                response_deserializer=raft__pb2.AppendEntryResponse.FromString,
+                response_deserializer=raft__pb2.AppendEntriesResponse.FromString,
                 )
         self.GetLeader = channel.unary_unary(
                 '/RaftService/GetLeader',
@@ -32,7 +32,7 @@ class RaftServiceStub(object):
         self.Suspend = channel.unary_unary(
                 '/RaftService/Suspend',
                 request_serializer=raft__pb2.SuspendRequest.SerializeToString,
-                response_deserializer=raft__pb2.EmptyResponse.FromString,
+                response_deserializer=raft__pb2.SuspendResponse.FromString,
                 )
 
 
@@ -74,7 +74,7 @@ def add_RaftServiceServicer_to_server(servicer, server):
             'AppendEntries': grpc.unary_unary_rpc_method_handler(
                     servicer.AppendEntries,
                     request_deserializer=raft__pb2.AppendEntryRequest.FromString,
-                    response_serializer=raft__pb2.AppendEntryResponse.SerializeToString,
+                    response_serializer=raft__pb2.AppendEntriesResponse.SerializeToString,
             ),
             'GetLeader': grpc.unary_unary_rpc_method_handler(
                     servicer.GetLeader,
@@ -84,7 +84,7 @@ def add_RaftServiceServicer_to_server(servicer, server):
             'Suspend': grpc.unary_unary_rpc_method_handler(
                     servicer.Suspend,
                     request_deserializer=raft__pb2.SuspendRequest.FromString,
-                    response_serializer=raft__pb2.EmptyResponse.SerializeToString,
+                    response_serializer=raft__pb2.SuspendResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -126,7 +126,7 @@ class RaftService(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/RaftService/AppendEntries',
             raft__pb2.AppendEntryRequest.SerializeToString,
-            raft__pb2.AppendEntryResponse.FromString,
+            raft__pb2.AppendEntriesResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -160,6 +160,6 @@ class RaftService(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/RaftService/Suspend',
             raft__pb2.SuspendRequest.SerializeToString,
-            raft__pb2.EmptyResponse.FromString,
+            raft__pb2.SuspendResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

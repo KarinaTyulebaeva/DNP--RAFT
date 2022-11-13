@@ -9,21 +9,27 @@ class Client:
 
     def connect(self, ip_and_port):
         try:
-            print(ip_and_port)
             self.channel = grpc.insecure_channel(ip_and_port)
             self.stub =pb2_grpc.RaftServiceStub(self.channel)
+
         except:
-            print("Something wrong")    
+            print('Something wrong')    
 
     def get_leader(self):
         response = self.stub.GetLeader(pb2.EmptyRequest())
-        print(f'{response.leaderId} {response.address}')       
+        if(response.leaderId == -1):
+            print(response.address)
+        else:    
+            print(f'{response.leaderId} {response.address}')       
 
     def suspend(self, period: int):
-        self.stub.Suspend(pb2.SuspendRequest(period = period))     
+        response = self.stub.Suspend(pb2.SuspendRequest(period = period))  
+
+        if(response.message == 'Alredy suspending'):
+            print(response.message)   
 
     def quit(self):
-        print("The client ends")
+        print('The client ends')
         exit(0)    
 
 
@@ -58,5 +64,6 @@ class Client:
 
 
 if __name__ == "__main__":
+    print('The client starts')
     client = Client()
     client.main_function()

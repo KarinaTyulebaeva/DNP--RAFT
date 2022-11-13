@@ -2,9 +2,9 @@ syntax = "proto3";
 
 service RaftService {
     rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
-    rpc AppendEntries(AppendEntryRequest) returns (AppendEntryResponse);
+    rpc AppendEntries(AppendEntryRequest) returns (AppendEntriesResponse);
     rpc GetLeader(EmptyRequest) returns (GetLeaderResponse);
-    rpc Suspend(SuspendRequest) returns (EmptyResponse);
+    rpc Suspend(SuspendRequest) returns (SuspendResponse);
 }
 
 message RequestVoteRequest {
@@ -22,15 +22,16 @@ message AppendEntryRequest {
     int32 leaaderId = 2;
 }
 
-message AppendEntryResponse {
+message AppendEntriesResponse {
     int32 term = 1;
-    bool succes = 2;
+    bool success = 2;
 }
 
 message EmptyRequest{
 }
 
-message EmptyResponse {
+message SuspendResponse {
+    string message = 1;
 }
 
 message GetLeaderResponse{
