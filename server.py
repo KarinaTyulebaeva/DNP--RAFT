@@ -1,3 +1,4 @@
+import threading
 import grpc
 import raft_pb2_grpc as pb2_grpc
 import raft_pb2 as pb2
@@ -6,6 +7,7 @@ from concurrent import futures
 import random
 from threading import Timer
 import math
+import time
 
 import log_pb2 as log_pb2
 import log_pb2_grpc as log_pb2_grpc
@@ -36,19 +38,49 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
     def update_term(self, n):
         self.term = n
-        self.voted = False   
+        self.voted = False 
+
+    def send_heartbeat(self, id_and_port):
+        new_channel = grpc.insecure_channel(ip_and_port)
+        new_stub = pb2_grpc.RaftServiceStub(new_channel)
+
+        msg = {"term": self.term, "leaderId": self.id}
+        # TODO: обработать еще респонс
+        request_vote_response = new_stub.AppendEntries(**msg)
+
+    def leader_duty(self, n):
+        while self.state == "leader":
+            hb_threads = []
+            for id, ip_and_port in self.config_dict:
+                if(id != 'leader'):
+                    hb_threads.append(threading.Thread(target=self.send_heartbeat, args=(ip_and_port)))
+            [t.start() for t in hb_threads]
+            [t.join() for t in hb_threads]
+            time.sleep(50)
+            
 
     def check_votes(self):
         if self.state != 'candidare':
             return
         if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
             self.state = 'leader'
-            # TODO: отдавать хартбит - тоже добавить таймер с функцией хартбита?
+            # Вот тут мы вызываем вечную функцию лидера которая шлет сердцебиения
+            self.leader_thread = threading.Thread(target=self.leader_duty)
+            self.leader_thread.start()
         else:
             self.state = 'follower'
             self.init_timer()
             self.restart_timer(self.become_candidate)
 
+    def get_vote(self, ip_and_port):
+        new_channel = grpc.insecure_channel(ip_and_port)
+        new_stub = pb2_grpc.RaftServiceStub(new_channel)
+
+        msg = {"term": self.term, "candidateId": self.id}
+        request_vote_response = new_stub.RequestVote(**msg)
+
+        if(request_vote_response.result == True):
+            self.votes+=1
 
     def become_candidate(self):
         self.update_term(1)
@@ -57,16 +89,11 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.votes = 1
         self.voted = True
 
+        vote_threads = []
         for id, ip_and_port in self.config_dict:
             if(id != 'leader'):
-                new_channel = grpc.insecure_channel(ip_and_port)
-                new_stub = pb2_grpc.RaftServiceStub(new_channel)
-
-                msg = {"term": self.term, "candidateId": self.id}
-                request_vote_response = new_stub.RequestVote(**msg)
-
-                if(request_vote_response.result == True):
-                    self.votes+=1
+                vote_threads.append(threading.Thread(target=self.get_vote, args=(ip_and_port)))
+        [t.start() for t in vote_threads]
 
     def reset_votes(self):
         self.votes = 0
