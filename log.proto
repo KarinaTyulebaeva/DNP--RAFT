@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+service LogService {
+    rpc SendLog(SendLogRequest) returns (EmptyResponse);
+}
+
+message SendLogRequest {
+    string log = 1;
+}
+
+message EmptyResponse {
+}

@@ -7,6 +7,9 @@ import random
 from threading import Timer
 import math
 
+import log_pb2 as log_pb2
+import log_pb2_grpc as log_pb2_grpc
+
 class RaftServerHandler(pb2_grpc.RaftService):
     def __init__(self, config_dict, id):
         self.term = 0
@@ -136,6 +139,12 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
     def Suspend(self, request, context):           
         self.timer.restart()
+
+    def log(self, message):
+        log_channel = grpc.insecure_channel(f'127.0.0.1:5555')
+        log_stub = log_pb2_grpc.LogServiceStub(log_channel)
+        msg = {"log": f'{self.id}  {message}'}    
+        log_stub.SendLog(**msg)
 
 if __name__ == "__main__":
     id = sys.argv[1]
