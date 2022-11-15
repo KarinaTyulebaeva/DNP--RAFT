@@ -345,4 +345,5 @@ if __name__ == "__main__":
     try: 
         server.wait_for_termination()
     except KeyboardInterrupt:
+        raft_service.state = 'sleeping'
         print('Termination')    
