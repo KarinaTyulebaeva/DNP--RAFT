@@ -38,7 +38,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
 
     def init_timer(self):
-        self.timer_count = random.randint(150, 300)    
+        self.timer_count = random.randint(1500, 3000)    
 
     def restart_timer(self, function):
         self.log("запустил таймер для функции " + function.__name__)
@@ -51,6 +51,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.voted = False 
 
     def send_heartbeat(self, ip_and_port):
+        self.log(f"Да я лидер, ща попробую отправить хартбит на {ip_and_port}")
         try:
             new_channel = grpc.insecure_channel(ip_and_port)
             new_stub = pb2_grpc.RaftServiceStub(new_channel)
@@ -72,11 +73,11 @@ class RaftServerHandler(pb2_grpc.RaftService):
             self.log("выполняет долг лидера")
             hb_threads = []
             for id, ip_and_port in self.config_dict.items():
-                if(id != 'leader' and id!=self.id):
+                if(id != 'leader' and id != str(self.id)):
                     hb_threads.append(threading.Thread(target=self.send_heartbeat, args=[ip_and_port]))
             [t.start() for t in hb_threads]
             [t.join() for t in hb_threads]
-            time.sleep(50/1000)
+            time.sleep(500/1000)
             
 
     def check_votes(self):
@@ -93,6 +94,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
             return
         if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
             self.state = 'leader'
+            self.config_dict['leader'] = str(self.id)
 
             print(f'I am a leader. Term: {self.term}')
 
@@ -120,7 +122,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 self.votes+=1
         except Exception:
             pass
-            #self.log(f"ПРОИЗОШЕЛ КРИНЖ {sys.exc_info()}")        
 
     def become_candidate(self):
         self.term = self.term+1
@@ -261,20 +262,28 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
     def GetLeader(self, request, context):
         if(self.state == "sleeping"):
+            self.log(f"FFFFFFFFFFF 1")
             return self.get_leader_response(-1, "Server is suspending")
         else:    
+            self.log(f"FFFFFFFFFFF 2")
             if(self.election_period):
-                if(self.voted_for != None):
+                self.log(f"FFFFFFFFFFF 3")
+                if(self.voted_for == None):
+                    self.log(f"FFFFFFFFFFF 4")
                     return self.get_leader_response(-1, "There is election now and server did not voted yet")
                 else:
+                    self.log(f"FFFFFFFFFFF 5")
+                    self.log(f"FFFFFFFFFFF else {self.voted_for} {self.config_dict[str(self.voted_for)]}")
                     return self.get_leader_response(self.voted_for, self.config_dict[str(self.voted_for)])
 
             else:
+                self.log(f"FFFFFFFFFFF 5")
                 leader_id = self.config_dict['leader']
-                return self.get_leader_response(int(leader_id), self.config_dict[leader_id])
+                self.log(f"FFFFFFFFFFF {leader_id} {self.config_dict[leader_id]}")
+                return self.get_leader_response(int(leader_id), str(self.config_dict[leader_id]))
 
-    def get_leader_response(self, leader_id: int, address: str):
-        return pb2.GetLeaderResponse(leaderId = leader_id, address = address)        
+    def get_leader_response(self, leader_id, address):
+        return pb2.GetLeaderResponse(leaderId = int(leader_id), address = str(address))        
 
     def Suspend(self, request, context):    
         if(self.state == "sleeping"):

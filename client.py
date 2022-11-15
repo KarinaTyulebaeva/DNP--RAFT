@@ -17,6 +17,7 @@ class Client:
 
     def get_leader(self):
         response = self.stub.GetLeader(pb2.EmptyRequest())
+        print(response)
         if(response.leaderId == -1):
             print(response.address)
         else:    
