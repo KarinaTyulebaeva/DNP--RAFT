@@ -24,6 +24,7 @@ class Client:
             else:    
                 print(f'{response.leaderId} {response.address}')   
         except Exception as e:
+            print(e)
             print('Server is suspending')          
 
     def suspend(self, period: int):

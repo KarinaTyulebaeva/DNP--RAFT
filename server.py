@@ -9,18 +9,16 @@ from threading import Timer
 import math
 import time
 
-import log_pb2 as log_pb2
-import log_pb2_grpc as log_pb2_grpc
 
 class RaftServerHandler(pb2_grpc.RaftService):
     def __init__(self, config_dict, id):
         self.term = 0
         self.state = "follower"
 
-        self.timer_count = random.randint(1500, 3000)
+        self.timer_count = random.randint(150, 300)
 
         self.config_dict = config_dict
-        self.config_dict['leader'] = None
+        self.config_dict['leader'] = -1
         self.heartbeat = 50
         self.id = id
         self.votes = 0
@@ -31,17 +29,15 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
         print(f'I am a follower. Term: {self.term}')
         
-        self.log("стал фолловером в первый раз")
         self.follower_timer = Timer(self.timer_count/1000, self.become_candidate)  
         self.follower_timer.start()
         self.candidate_timer = None
 
 
     def init_timer(self):
-        self.timer_count = random.randint(1500, 3000)    
+        self.timer_count = random.randint(150, 300)    
 
     def restart_timer(self, function):
-        self.log("запустил таймер для функции " + function.__name__)
         timer = Timer(self.timer_count/1000, function)  
         timer.start()
         return timer
@@ -51,7 +47,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.voted = False 
 
     def send_heartbeat(self, ip_and_port):
-        self.log(f"Да я лидер, ща попробую отправить хартбит на {ip_and_port}")
         try:
             new_channel = grpc.insecure_channel(ip_and_port)
             new_stub = pb2_grpc.RaftServiceStub(new_channel)
@@ -60,47 +55,38 @@ class RaftServerHandler(pb2_grpc.RaftService):
 
             if(request_vote_response.term != -1):
                 if(request_vote_response.success == False):
-                    self.log(f'неудача от адреса {ip_and_port}')
                     self.update_term(request_vote_response.term)
                     print(f'I am a follower. Term: {self.term}')
                     self.become_follower()
-                else:
-                    self.log(f'удача от адреса {ip_and_port}')
         except:
             pass
-            #self.log("Нода "+ ip_and_port+ " недоступна")        
 
     def leader_duty(self):
         while self.state == "leader":
-            self.log("выполняет долг лидера")
             hb_threads = []
             for id, ip_and_port in self.config_dict.items():
                 if(id != 'leader' and id != str(self.id)):
                     hb_threads.append(threading.Thread(target=self.send_heartbeat, args=[ip_and_port]))
             [t.start() for t in hb_threads]
             [t.join() for t in hb_threads]
-            time.sleep(500/1000)
+            time.sleep(50/1000)
             
 
     def check_votes(self):
         print('Votes received')
         # закончили голосование
         self.election_period = False
-        self.log("Голосование закончено на term: "+ str(self.term))     
         # затираем голос
         self.voted_for = None
 
-        self.log(f"votes: {self.votes}")
 
         if self.state != 'candidate':
             return
-        if(self.votes >= math.floor((len(self.config_dict)-1)/2)):
+        if(self.votes >= math.ceil((len(self.config_dict)-1)/2)):
             self.state = 'leader'
             self.config_dict['leader'] = str(self.id)
 
             print(f'I am a leader. Term: {self.term}')
-
-            self.log("стал лидером")
 
             # Вот тут мы вызываем вечную функцию лидера которая шлет сердцебиения
             self.leader_thread = threading.Thread(target=self.leader_duty)
@@ -130,10 +116,8 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.state = 'candidate' 
 
         print(f'I am a candidate. Term: {self.term}')
-        self.log("стал кандидатом")
 
         self.candidate_timer = self.restart_timer(self.check_votes)
-        self.log("перезапустил таймер для голосования")
         self.votes = 1
         self.voted = True
 
@@ -147,11 +131,9 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 vote_threads.append(threading.Thread(target=self.get_vote, args=[ip_and_port]))
         [t.start() for t in vote_threads]
         [t.join() for t in vote_threads]
-        self.log("ушел")
 
     def become_follower(self):
         self.state = "follower"
-        self.log("стал фолловером")
         if(self.candidate_timer != None):
                 self.candidate_timer.cancel()
                 self.candidate_timer = None
@@ -168,11 +150,9 @@ class RaftServerHandler(pb2_grpc.RaftService):
     def RequestVote(self, request, context):
         # снова начались выборы
         self.election_period = True
-        self.log("получил просьбу голосовать")
         
         # follower
         if(self.state == 'follower'):
-            self.log("ФОЛЛОВЕР!")
             if(self.follower_timer != None):
                 self.follower_timer.cancel()
                 self.follower_timer = None
@@ -182,29 +162,23 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 self.voted = True
                 self.voted_for = request.candidateId
                 print(f'Voted for node {self.voted_for}')
-                self.log("послушно проголосовал")
                 return pb2.RequestVoteResponse(term = self.term, result = True)
             elif(request.term > self.term):
                 self.update_term(request.term)
                 self.voted = True 
                 self.voted_for = request.candidateId 
                 print(f'Voted for node {self.voted_for}')
-                self.log("послушно проголосовал")
                 return pb2.RequestVoteResponse(term = self.term, result = True)
             else:
-                self.log("не проголосовал")
                 return pb2.RequestVoteResponse(term = self.term, result = False)
 
         # candidate
         elif(self.state == 'candidate'):
-            self.log("КАНДИДАТ!")
             if(request.term == self.term):
-                self.log("не проголосовал")
                 return pb2.RequestVoteResponse(term = self.term, result = False) 
 
             elif(request.term > self.term):
                 self.update_term(request.term)
-                self.log("послушно проголосовал")
 
                 print(f'I am a follower. Term: {self.term}')
                 self.become_follower()
@@ -216,7 +190,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 return pb2.RequestVoteResponse(term = self.term, result = True)  
 
             else:
-                self.log("не проголосовал")
                 return pb2.RequestVoteResponse(term = self.term, result = False)
 
         # leader        
@@ -244,12 +217,10 @@ class RaftServerHandler(pb2_grpc.RaftService):
         self.voted_for = None   
 
     def AppendEntries(self, request, context):
-        self.log("получил хартбит")
 
         if(self.state == 'sleeping'):
             return pb2.AppendEntriesResponse(term = -1, success = False)    
         elif request.term >= self.term and self.state in ['follower', 'leader', 'candidate']:
-            self.log("успешно")
             if self.state == "follower":
                 if self.follower_timer != None:
                     self.follower_timer.cancel()
@@ -263,10 +234,9 @@ class RaftServerHandler(pb2_grpc.RaftService):
                 print(f'I am a follower. Term: {self.term}')
                 self.become_follower()
 
-            self.config_dict['leader'] = request.leaderId
+            self.config_dict['leader'] = request.leaaderId
             return pb2.AppendEntriesResponse(term = self.term, success = True)
         else:
-            self.log("неуспешно")
             return pb2.AppendEntriesResponse(term = self.term, success = False)    
 
     def GetLeader(self, request, context):
@@ -291,7 +261,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
             return pb2.SuspendResponse(message = "Already suspending")
 
         else:        
-            self.log(f'{self.state} is dead')
             if self.follower_timer != None:
                 self.follower_timer.cancel()
             if self.candidate_timer != None: 
@@ -302,12 +271,6 @@ class RaftServerHandler(pb2_grpc.RaftService):
             time.sleep(request.period)
             self.become_follower()
     
-
-    def log(self, message):
-        log_channel = grpc.insecure_channel(f'127.0.0.1:5555')
-        log_stub = log_pb2_grpc.LogServiceStub(log_channel)
-        msg = {"log": f'{self.id}  {message}  at term {self.term}'}    
-        log_stub.SendLog(log_pb2.SendLogRequest(log = f'{self.id}  {message}  at term {self.term}'))
 
 if __name__ == "__main__":
     id = sys.argv[1]
