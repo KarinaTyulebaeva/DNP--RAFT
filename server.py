@@ -263,7 +263,7 @@ class RaftServerHandler(pb2_grpc.RaftService):
     def GetLeader(self, request, context):
         if(self.state == "sleeping"):
             self.log(f"FFFFFFFFFFF 1")
-            return self.get_leader_response(-1, "Server is suspending")
+            return self.get_leader_response(-1, "Server is sleeping")
         else:    
             self.log(f"FFFFFFFFFFF 2")
             if(self.election_period):

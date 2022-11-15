@@ -12,22 +12,28 @@ class Client:
             self.channel = grpc.insecure_channel(ip_and_port)
             self.stub =pb2_grpc.RaftServiceStub(self.channel)
 
-        except:
-            print('Something wrong')    
+        except Exception as e:
+            print('Server is suspending')    
 
     def get_leader(self):
-        response = self.stub.GetLeader(pb2.EmptyRequest())
-        print(response)
-        if(response.leaderId == -1):
-            print(response.address)
-        else:    
-            print(f'{response.leaderId} {response.address}')       
+        try:
+            response = self.stub.GetLeader(pb2.EmptyRequest())
+            print(response)
+            if(response.leaderId == -1):
+                print(response.address)
+            else:    
+                print(f'{response.leaderId} {response.address}')   
+        except Exception as e:
+            print('Server is suspending')          
 
     def suspend(self, period: int):
-        response = self.stub.Suspend(pb2.SuspendRequest(period = period))  
+        try:
+            response = self.stub.Suspend(pb2.SuspendRequest(period = period))  
 
-        if(response.message == 'Alredy suspending'):
-            print(response.message)   
+            if(response.message == 'Alredy suspending'):
+                print(response.message)  
+        except Exception as e:
+            print('Server is suspending')          
 
     def quit(self):
         print('The client ends')
